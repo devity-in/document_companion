@@ -2,7 +2,9 @@ import 'package:document_companion/config/custom_colors.dart';
 import 'package:document_companion/config/custom_theme.dart';
 import 'package:document_companion/modules/home/services/ad_service.dart';
 import 'package:document_companion/utils/ux_helpers.dart';
+import 'package:document_companion/local_database/document_file_store.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 class SettingsPage extends StatefulWidget {
   static const String route = '/settings';
@@ -28,6 +30,30 @@ class _SettingsPageState extends State<SettingsPage> {
         });
       }
     });
+  }
+
+  Future<void> _showStorageDialog(BuildContext context) async {
+    final usage = await documentFileStore.usage();
+    if (!context.mounted) return;
+    final megabytes = usage.bytes / (1024 * 1024);
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Storage'),
+        content: Text(
+          '${usage.files} document${usage.files == 1 ? '' : 's'} using '
+          '${megabytes.toStringAsFixed(megabytes < 10 ? 1 : 0)} MB on this device.\n\n'
+          'Documents are stored only on this device. Delete documents or '
+          'folders you no longer need to free up space.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _checkAdStatus() {
@@ -75,7 +101,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     setState(() {});
                     UXHelpers.successFeedback();
                   },
-                  activeColor: CustomColors.primary,
+                  activeThumbColor: CustomColors.primary,
                 ),
               ),
             ],
@@ -116,7 +142,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   color: CustomColors.primary,
                 ),
                 title: 'Remove Ads',
-                subtitle: 'Watch an ad to remove ads for 24 hours',
+                subtitle: adService.adsDisabled
+                    ? 'Ad-free until ${DateFormat('EEE h:mm a').format(adService.adsDisabledUntil.value!)}'
+                    : 'Watch an ad to remove ads for 24 hours',
                 trailing: Icon(
                   Icons.play_circle_outline_rounded,
                   color: CustomColors.primary,
@@ -147,12 +175,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 onTap: () {
                   UXHelpers.selectionFeedback();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Storage management coming soon'),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
+                  _showStorageDialog(context);
                 },
               ),
             ],
@@ -262,9 +285,11 @@ class _SettingsPageState extends State<SettingsPage> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
+                  color: Colors.orange.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                  border: Border.all(
+                    color: Colors.orange.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -306,8 +331,8 @@ class _SettingsPageState extends State<SettingsPage> {
                     // Show rewarded ad
                     final shown = adService.showRewardedAd(
                       onRewarded: () {
-                        // TODO: Implement logic to disable ads for 24 hours
-                        // You can use SharedPreferences to store the timestamp
+                        adService.disableAdsFor(const Duration(hours: 24));
+                        if (mounted) setState(() {});
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(

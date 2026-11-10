@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:document_companion/config/custom_colors.dart';
 import 'package:document_companion/config/custom_theme.dart';
 import 'package:document_companion/local_database/models/recent_document_model.dart';
@@ -20,6 +18,8 @@ import 'package:document_companion/modules/home/widgets/banner_ad_widget.dart';
 import 'package:document_companion/modules/settings/view/settings_page.dart';
 import 'package:document_companion/utils/constants/constants.dart';
 import 'package:document_companion/utils/ux_helpers.dart';
+import 'package:document_companion/local_database/handler/image_database_handler.dart';
+import 'package:document_companion/modules/home/services/file_import_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -97,13 +97,11 @@ class _HomepageState extends State<Homepage> {
     if (!context.mounted) return;
 
     if (images.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No images found. Please scan or import images first.'),
-          duration: Duration(seconds: 3),
-        ),
+      // Nothing scanned yet: pick images, then offer PDF from the preview.
+      final imported = await fileImportService.importMultipleImagesFromGallery(
+        context,
       );
-      return;
+      if (imported == 0) return;
     }
     // Navigate to images preview where PDF conversion is available
     if (context.mounted) {
@@ -354,7 +352,7 @@ class _HomepageState extends State<Homepage> {
             children: [
               // Services Section
               SizedBox(
-                height: 100,
+                height: 136,
                 child: ListView.separated(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 20,
@@ -647,9 +645,9 @@ class _ServiceCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        width: 80,
-        height: 100,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        width: 88,
+        height: 112,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
@@ -677,6 +675,7 @@ class _ServiceCard extends StatelessWidget {
                         Theme.of(context).textTheme.bodySmall?.color ??
                         CustomColors.textPrimary,
                     fontSize: 11,
+                    height: 1.2,
                     fontWeight: FontWeight.w500,
                   ),
                   textAlign: TextAlign.center,
@@ -730,15 +729,18 @@ class _FolderCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 4),
-              FutureBuilder<int>(
-                future: imageBloc.getImageCount(folder.id),
-                builder: (context, snapshot) {
-                  final count = snapshot.data ?? 0;
-                  return Text(
-                    '$count ${count == 1 ? 'document' : 'documents'}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  );
-                },
+              ValueListenableBuilder<int>(
+                valueListenable: imageDatabaseHandler.changes,
+                builder: (context, _, _) => FutureBuilder<int>(
+                  future: imageBloc.getImageCount(folder.id),
+                  builder: (context, snapshot) {
+                    final count = snapshot.data ?? 0;
+                    return Text(
+                      '$count ${count == 1 ? 'document' : 'documents'}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    );
+                  },
+                ),
               ),
               FutureBuilder<List<TagModel>>(
                 future: tagBloc.getTagsByFolderId(folder.id),
@@ -759,9 +761,8 @@ class _FolderCard extends StatelessWidget {
                                 vertical: 3,
                               ),
                               decoration: BoxDecoration(
-                                color: _parseColor(
-                                  tag.color,
-                                ).withValues(alpha: 0.2),
+                                color: _parseColor(tag.color)
+                                    .withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
@@ -810,9 +811,8 @@ class _RecentDocumentsSection extends StatelessWidget {
             children: [
               Text(
                 'Recent Documents',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
               TextButton(
                 onPressed: () {
@@ -942,9 +942,8 @@ class _RecentDocumentCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Text(
                 recentDocument.documentName,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(fontSize: 10),
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(fontSize: 10),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
@@ -984,9 +983,8 @@ class _EmptyState extends StatelessWidget {
               const SizedBox(height: 24),
               Text(
                 'Your Document Hub Awaits',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(context).textTheme.headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
@@ -1105,10 +1103,8 @@ class _ComingSoonCard extends StatelessWidget {
                 Flexible(
                   child: Text(
                     title,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(fontSize: 10, fontWeight: FontWeight.w600),
                     textAlign: TextAlign.center,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

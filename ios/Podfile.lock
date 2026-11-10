@@ -1,0 +1,79 @@
+PODS:
+  - camera_avfoundation (0.0.1):
+    - Flutter
+  - file_picker_darwin (1.0.0):
+    - Flutter
+    - FlutterMacOS
+  - Flutter (1.0.0)
+  - Google-Mobile-Ads-SDK (13.12.0):
+    - GoogleUserMessagingPlatform (>= 1.1)
+  - google_mobile_ads (9.2.0):
+    - Flutter
+    - Google-Mobile-Ads-SDK (~> 13.11)
+    - webview_flutter_wkwebview
+  - GoogleUserMessagingPlatform (3.1.0)
+  - image_picker_ios (0.0.1):
+    - Flutter
+  - printing (1.0.0):
+    - Flutter
+  - share_plus (0.0.1):
+    - Flutter
+  - sqflite_darwin (0.0.4):
+    - Flutter
+    - FlutterMacOS
+  - webview_flutter_wkwebview (0.0.1):
+    - Flutter
+    - FlutterMacOS
+
+DEPENDENCIES:
+  - camera_avfoundation (from `.symlinks/plugins/camera_avfoundation/darwin`)
+  - file_picker_darwin (from `.symlinks/plugins/file_picker_darwin/darwin`)
+  - Flutter (from `Flutter`)
+  - google_mobile_ads (from `.symlinks/plugins/google_mobile_ads/ios`)
+  - image_picker_ios (from `.symlinks/plugins/image_picker_ios/ios`)
+  - printing (from `.symlinks/plugins/printing/ios`)
+  - share_plus (from `.symlinks/plugins/share_plus/ios`)
+  - sqflite_darwin (from `.symlinks/plugins/sqflite_darwin/darwin`)
+  - webview_flutter_wkwebview (from `.symlinks/plugins/webview_flutter_wkwebview/darwin`)
+
+SPEC REPOS:
+  trunk:
+    - Google-Mobile-Ads-SDK
+    - GoogleUserMessagingPlatform
+
+EXTERNAL SOURCES:
+  camera_avfoundation:
+    :path: ".symlinks/plugins/camera_avfoundation/darwin"
+  file_picker_darwin:
+    :path: ".symlinks/plugins/file_picker_darwin/darwin"
+  Flutter:
+    :path: Flutter
+  google_mobile_ads:
+    :path: ".symlinks/plugins/google_mobile_ads/ios"
+  image_picker_ios:
+    :path: ".symlinks/plugins/image_picker_ios/ios"
+  printing:
+    :path: ".symlinks/plugins/printing/ios"
+  share_plus:
+    :path: ".symlinks/plugins/share_plus/ios"
+  sqflite_darwin:
+    :path: ".symlinks/plugins/sqflite_darwin/darwin"
+  webview_flutter_wkwebview:
+    :path: ".symlinks/plugins/webview_flutter_wkwebview/darwin"
+
+SPEC CHECKSUMS:
+  camera_avfoundation: 769d252259fa21e39ada7399c9dc9c0921af8165
+  file_picker_darwin: 27e043831d68462d54f1c40e724b1f53c9d1e8be
+  Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
+  Google-Mobile-Ads-SDK: cbfc0aa6883afbad2ff3dcccce75b673ff8d3f65
+  google_mobile_ads: c8f164ff415b8440e50b0102508d148c7fbea07f
+  GoogleUserMessagingPlatform: befe603da6501006420c206222acd449bba45a9c
+  image_picker_ios: 3b5c3761ec7755e83b659fd65c7f03c9c7f25d6c
+  printing: bfc11ab4553c1728730eefb778f4647280044111
+  share_plus: 796a4b55a883a34f4f1ff7bbd19436879a5055db
+  sqflite_darwin: 5a7236e3b501866c1c9befc6771dfd73ffb8702d
+  webview_flutter_wkwebview: 29eb20d43355b48fe7d07113835b9128f84e3af4
+
+PODFILE CHECKSUM: 3ba3a73b1b12adcf321a227a745625fe0888cc82
+
+COCOAPODS: 1.16.2

@@ -10,10 +10,7 @@ import 'edit_state.dart';
 class EditBloc extends Bloc<EditEvent, EditState> {
   final ImageUtils _imageUtils;
 
-  EditBloc({
-    required ImageUtils imageUtils,
-  })  : _imageUtils = imageUtils,
-        super(EditState.init()) {
+  EditBloc({required this._imageUtils}) : super(EditState.init()) {
     on<EditStarted>(_started);
     on<EditFilterChanged>(_filterChanged);
   }
@@ -21,15 +18,10 @@ class EditBloc extends Bloc<EditEvent, EditState> {
   late Uint8List imageBase;
 
   ///
-  Future<void> _started(
-    EditStarted event,
-    Emitter<EditState> emit,
-  ) async {
+  Future<void> _started(EditStarted event, Emitter<EditState> emit) async {
     imageBase = event.image;
 
-    emit(state.copyWith(
-      image: event.image,
-    ));
+    emit(state.copyWith(image: event.image));
   }
 
   ///
@@ -39,8 +31,6 @@ class EditBloc extends Bloc<EditEvent, EditState> {
   ) async {
     final newImage = await _imageUtils.applyFilter(imageBase, event.filter);
 
-    emit(state.copyWith(
-      image: newImage,
-    ));
+    emit(state.copyWith(image: newImage));
   }
 }

@@ -5,28 +5,11 @@
 
 ---
 
-## Current State (v1.0.0)
+## Current State
 
-### What works
+See [CURRENT_STATUS.md](CURRENT_STATUS.md) for the up-to-date list of what works, what has been verified on a device and what is still missing before a store release.
 
-- Camera capture and manual crop with 4-corner drag handles
-- Folder management with tags, search, sort, date filters
-- Image management — save to folders, grid/list view, viewer with zoom
-- PDF tools — create from images, merge, split, compress, import, PDF-to-Word
-- Batch operations — multi-select, batch delete/move/convert
-- Recent documents tracking
-- Dark mode, Material 3 theming
-- Google Mobile Ads integration
-
-### What doesn't work (despite UI/docs claiming otherwise)
-
-- **Edge detection** — `MethodChannel` calls `findContourPhoto` but no native code exists on Android or iOS. Returns `null` every time. Users always get default crop corners.
-- **Perspective correction** — `adjustingPerspective` also has no native handler. Falls back to rectangular bounding-box crop (no actual perspective warp).
-- **Image filters** — `applyFilter` native call fails. Falls back to Dart isolate, but "Gray" and "Eco" filters are both identical (`img.grayscale`).
-- **Auto-capture** — Not implemented.
-- **Real-time contour overlay** — Not implemented. Camera shows raw feed only.
-- **OCR** — UI labels exist, no implementation.
-- **Tests** — Single placeholder test that tests a counter app, not this app.
+In short: scanning, folders, document management and the PDF tools work on Android (Flutter 3.47). Phase 0 is mostly done and Phase 1 is done. iOS is lower priority for now. OCR, annotations, signatures and backup are not implemented.
 
 ---
 
@@ -40,18 +23,18 @@
 
 | # | Task | Difficulty | Labels |
 |---|------|-----------|--------|
-| 0.1 | **Fix `deleteCurrentImage()` missing WHERE clause** — Can delete all rows instead of one | Easy | `bug`, `critical`, `good-first-issue` |
-| 0.2 | **Fix `bool.fromEnvironment` misuse** in `CurrentImageDatabaseHandler` — Should be `== 'true'` string comparison | Easy | `bug`, `good-first-issue` |
-| 0.3 | **Add missing `await`** on `FolderTableHandler.insertFolder` | Easy | `bug`, `good-first-issue` |
-| 0.4 | **Fix `FolderBloc.updateFolder`** — `firstWhere` without `orElse` throws if folder not found | Easy | `bug`, `good-first-issue` |
+| 0.1 | ✅ **Fix `deleteCurrentImage()` missing WHERE clause** — Can delete all rows instead of one — *the table is session-only; clearing it is intended and now awaited, and single pages can be removed* | Easy | `bug`, `critical`, `good-first-issue` |
+| 0.2 | ✅ **Fix `bool.fromEnvironment` misuse** in `CurrentImageDatabaseHandler` — Should be `== 'true'` string comparison — *column removed in schema version 6* | Easy | `bug`, `good-first-issue` |
+| 0.3 | ✅ **Add missing `await`** on `FolderTableHandler.insertFolder` | Easy | `bug`, `good-first-issue` |
+| 0.4 | ✅ **Fix `FolderBloc.updateFolder`** — `firstWhere` without `orElse` throws if folder not found | Easy | `bug`, `good-first-issue` |
 | 0.5 | **Dispose StreamControllers** in all custom BLoCs (`FolderBloc`, `ImageBloc`, `TagBloc`, `RecentDocumentsBloc`, `CurrentImageBloc`) | Easy | `bug`, `memory-leak` |
-| 0.6 | **Rename database** from `"test.db"` to `"document_companion.db"` with migration | Easy | `technical-debt`, `good-first-issue` |
-| 0.7 | **Fix "Eco" filter** — Currently identical to "Gray". Implement actual eco filter (e.g., reduced contrast grayscale or light threshold) | Easy | `bug`, `scanner` |
+| 0.6 | ✅ **Rename database** from `"test.db"` to `"document_companion.db"` with migration | Easy | `technical-debt`, `good-first-issue` |
+| 0.7 | ✅ **Fix "Eco" filter** — Currently identical to "Gray". Implement actual eco filter (e.g., reduced contrast grayscale or light threshold) — *replaced by Enhance and B&W filters* | Easy | `bug`, `scanner` |
 | 0.8 | **Add `FolderModel.fromMap`** factory constructor — `toMap` exists but no deserialization | Easy | `technical-debt`, `good-first-issue` |
 | 0.9 | **Extract duplicate `_parseColor`** into shared `ColorUtils` — Duplicated in 4+ widgets | Easy | `technical-debt`, `good-first-issue` |
-| 0.10 | **Fix `SaveImageBloc` force-unwrap** — `CustomKey.navigatorKey.currentContext!` can crash | Medium | `bug` |
-| 0.11 | **Remove hardcoded ad unit IDs** — Move to a config/constants file, use test IDs in debug builds | Medium | `technical-debt`, `ads` |
-| 0.12 | **Replace placeholder widget test** with actual tests for at least `FolderBloc` and `ImageBloc` | Medium | `testing` |
+| 0.10 | ✅ **Fix `SaveImageBloc` force-unwrap** — `CustomKey.navigatorKey.currentContext!` can crash | Medium | `bug` |
+| 0.11 | ✅ **Remove hardcoded ad unit IDs** — Move to a config/constants file, use test IDs in debug builds — *debug builds use test ad units* | Medium | `technical-debt`, `ads` |
+| 0.12 | ✅ **Replace placeholder widget test** with actual tests for at least `FolderBloc` and `ImageBloc` — *tests cover image processing, storage, migration and PDF tools; BLoC tests still missing* | Medium | `testing` |
 | 0.13 | **Unify state management** — Migrate custom stream-based BLoCs to `flutter_bloc` pattern (matching scanner module) or document why both exist | Hard | `technical-debt`, `architecture` |
 
 **Exit criteria:** All critical bugs fixed, no data-loss risks, StreamControllers properly disposed.
@@ -73,10 +56,10 @@ The fastest path. Google's Document Scanner API handles edge detection, perspect
 
 | # | Task | Difficulty | Labels |
 |---|------|-----------|--------|
-| 1.1 | **Evaluate `google_mlkit_document_scanner`** — Test on Android (API 21+) and iOS, document limitations | Medium | `research`, `scanner` |
-| 1.2 | **Integrate ML Kit Document Scanner** — Add dependency, implement native setup for both platforms | Medium | `scanner`, `feature` |
-| 1.3 | **Connect ML Kit output to existing crop/edit flow** — Feed detected corners into `CropBloc`, feed corrected image into `EditBloc` | Medium | `scanner` |
-| 1.4 | **Remove or gate broken MethodChannel calls** — Clean up `findContourPhoto`, `adjustingPerspective` native calls that do nothing | Easy | `scanner`, `cleanup` |
+| 1.1 | ✅ **Evaluate `google_mlkit_document_scanner`** — Test on Android (API 21+) and iOS, document limitations | Medium | `research`, `scanner` |
+| 1.2 | ✅ **Integrate ML Kit Document Scanner** — Add dependency, implement native setup for both platforms | Medium | `scanner`, `feature` |
+| 1.3 | ✅ **Connect ML Kit output to existing crop/edit flow** — Feed detected corners into `CropBloc`, feed corrected image into `EditBloc` — *ML Kit results go to the preview/save flow; the built-in crop/edit flow is the fallback* | Medium | `scanner` |
+| 1.4 | ✅ **Remove or gate broken MethodChannel calls** — Clean up `findContourPhoto`, `adjustingPerspective` native calls that do nothing | Easy | `scanner`, `cleanup` |
 | 1.5 | **Test scanner end-to-end** — Verify: capture → detect edges → crop → perspective correct → filter → save | Medium | `scanner`, `testing` |
 
 #### Option B: OpenCV via FFI (More control, more effort)
@@ -86,12 +69,14 @@ If ML Kit is too opinionated or doesn't support a target platform.
 | # | Task | Difficulty | Labels |
 |---|------|-----------|--------|
 | 1.1b | **Add `opencv_dart` or implement native OpenCV** on Android (Kotlin) and iOS (Swift) | Hard | `scanner`, `native` |
-| 1.2b | **Implement `findContourPhoto`** natively — Canny edge detection → find contours → approximate polygon → return 4 corners | Hard | `scanner`, `native` |
-| 1.3b | **Implement `adjustingPerspective`** natively — `getPerspectiveTransform` + `warpPerspective` | Hard | `scanner`, `native` |
-| 1.4b | **Implement `applyFilter`** natively — Adaptive threshold, color enhancement, sharpen | Medium | `scanner`, `native` |
+| 1.2b | ✅ **Implement `findContourPhoto`** natively — Canny edge detection → find contours → approximate polygon → return 4 corners — *done in pure Dart instead of OpenCV* | Hard | `scanner`, `native` |
+| 1.3b | ✅ **Implement `adjustingPerspective`** natively — `getPerspectiveTransform` + `warpPerspective` — *done in pure Dart instead of OpenCV* | Hard | `scanner`, `native` |
+| 1.4b | ✅ **Implement `applyFilter`** natively — Adaptive threshold, color enhancement, sharpen — *done in pure Dart instead of OpenCV* | Medium | `scanner`, `native` |
 | 1.5b | **Test on both platforms** | Medium | `scanner`, `testing` |
 
 **Exit criteria:** Taking a photo of a document on a table produces a properly cropped, perspective-corrected rectangular image.
+
+**Status:** Done with a hybrid of both options — ML Kit on Android, and a pure-Dart corner detector and perspective warp in the built-in scanner (iOS and fallback). Still open: 1.5 end-to-end testing of the ML Kit scanner on a real device.
 
 ---
 
@@ -220,7 +205,7 @@ If ML Kit is too opinionated or doesn't support a target platform.
 | 7.4 | **Encrypted storage** — Encrypt sensitive documents at rest | Hard | `security` |
 | 7.5 | **Secure delete** — Overwrite file data on deletion | Easy | `security`, `good-first-issue` |
 | 7.6 | **Auto-backup** — Scheduled automatic local backups | Medium | `backup` |
-| 7.7 | **Configure release signing** — Android release build currently uses debug signing | Medium | `security`, `build` |
+| 7.7 | **Configure release signing** (launch blocker) — Android release build currently uses debug signing | Medium | `security`, `build` |
 
 **Exit criteria:** Users can back up and restore their entire document library. App can be locked with biometrics.
 
@@ -338,5 +323,5 @@ Phase 0 (Bug Fixes)
 
 ---
 
-*Last updated: 2026-03-04*
+*Last updated: 2026-11-10*
 *Version: 1.0.0*

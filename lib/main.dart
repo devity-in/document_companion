@@ -9,6 +9,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'config/custom_key.dart';
 import 'config/custom_theme.dart';
 import 'generated/l10n.dart';
+import 'local_database/document_file_store.dart';
 import 'modules/home/services/ad_service.dart';
 
 Future<void> main() async {
@@ -16,13 +17,18 @@ Future<void> main() async {
   // can be called before `runApp()`
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Google Mobile Ads SDK
-  await MobileAds.instance.initialize();
+  await documentFileStore.init();
+  await CustomTheme().load();
+  await adService.loadState();
 
-  // Preload ads for better user experience
-  adService.preloadAds();
+  // Ads are initialised in the background so they never delay startup.
+  unawaited(
+    MobileAds.instance.initialize().then((_) {
+      if (!adService.adsDisabled) adService.preloadAds();
+    }),
+  );
 
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatefulWidget {

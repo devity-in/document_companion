@@ -1,12 +1,10 @@
 import 'package:document_companion/config/custom_colors.dart';
-import 'package:document_companion/local_database/handler/image_database_handler.dart';
-import 'package:document_companion/local_database/models/image_model.dart';
+import 'package:document_companion/local_database/document_repository.dart';
 import 'package:document_companion/modules/home/bloc/current_image_bloc.dart';
 import 'package:document_companion/modules/home/bloc/folder_bloc.dart';
 import 'package:document_companion/modules/home/bloc/image_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:uuid/uuid.dart';
 
 import '../models/folder_selection_model.dart';
 
@@ -54,40 +52,16 @@ class _SaveImageBottomSheetState extends State<SaveImageBottomSheet> {
     setState(() => _isSaving = true);
 
     try {
-      // Get current images
-      final currentImages = await currentImageBloc.getCurrentImagesList();
-
-      if (currentImages.isEmpty) {
+      final savedCount = await documentRepository.savePendingToFolders([
+        for (final folder in selectedFolders) folder.id,
+      ]);
+      if (savedCount == 0) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('No images to save')));
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('No images to save')));
         }
         return;
       }
-
-      final uuid = Uuid();
-      final now = DateTime.now();
-      final timestamp = DateFormat('yyyy-MM-dd HH:mm:ss').format(now);
-
-      // Save each image to each selected folder
-      for (var folder in selectedFolders) {
-        for (var currentImage in currentImages) {
-          final imageModel = ImageModel(
-            id: uuid.v4(),
-            folderId: folder.id,
-            image: currentImage.image,
-            name: 'Document_${DateFormat('yyyyMMdd_HHmmss').format(now)}',
-            createdOn: timestamp,
-            modifiedOn: timestamp,
-            size: currentImage.image.lengthInBytes,
-          );
-          await imageDatabaseHandler.insertImage(imageModel);
-        }
-      }
-
-      // Clear current images after saving
-      await currentImageBloc.deleteCurrentImages();
       await currentImageBloc.getCurrentImage();
 
       // Refresh image count for selected folders
@@ -101,16 +75,15 @@ class _SaveImageBottomSheetState extends State<SaveImageBottomSheet> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Saved ${currentImages.length} image(s) to ${selectedFolders.length} folder(s)',
+              'Saved $savedCount page${savedCount == 1 ? '' : 's'} to ${selectedFolders.length} folder${selectedFolders.length == 1 ? '' : 's'}',
             ),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error saving images: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error saving images: $e')));
       }
     } finally {
       if (mounted) {
@@ -219,15 +192,15 @@ class _SaveImageBottomSheetState extends State<SaveImageBottomSheet> {
                                     children: [
                                       Text(
                                         folder.folderName,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.titleMedium,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium,
                                       ),
                                       Text(
-                                        folder.createdOn,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
+                                        'Created ${DateFormat.yMMMd().format(DateTime.fromMillisecondsSinceEpoch(int.tryParse(folder.createdOn) ?? 0))}',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall,
                                       ),
                                     ],
                                   ),

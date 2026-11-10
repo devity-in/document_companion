@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:document_companion/local_database/handler/image_database_handler.dart';
 import 'package:document_companion/local_database/models/image_model.dart';
 import 'package:document_companion/modules/home/bloc/folder_bloc.dart';
@@ -41,18 +40,10 @@ class DocumentService {
           TextButton(
             onPressed: () async {
               if (nameController.text.trim().isNotEmpty) {
-                final updatedImage = ImageModel(
-                  id: image.id,
-                  folderId: image.folderId,
-                  image: image.image,
+                final updatedImage = image.copyWith(
                   name: nameController.text.trim(),
-                  createdOn: image.createdOn,
-                  modifiedOn: DateFormat(
-                    'yyyy-MM-dd HH:mm:ss',
-                  ).format(DateTime.now()),
-                  size: image.size,
-                  width: image.width,
-                  height: image.height,
+                  modifiedOn: DateFormat('yyyy-MM-dd HH:mm:ss')
+                      .format(DateTime.now()),
                 );
 
                 await imageDatabaseHandler.updateImage(updatedImage);
@@ -78,13 +69,18 @@ class DocumentService {
   /// Share a document
   Future<void> shareDocument(BuildContext context, ImageModel image) async {
     try {
-      // Save image to temporary file
+      // Copy to a temporary file so the shared file carries the document name
       final directory = await getTemporaryDirectory();
-      final file = File('${directory.path}/${image.name}.jpg');
-      await file.writeAsBytes(image.image);
+      final extension = image.filePath.split('.').last;
+      final safeName = image.name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+      final file = await image.file.copy(
+        '${directory.path}/$safeName.$extension',
+      );
 
       // Share the file
-      await Share.shareXFiles([XFile(file.path)], subject: image.name);
+      await SharePlus.instance.share(
+        ShareParams(files: [XFile(file.path)], subject: image.name),
+      );
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -198,16 +194,9 @@ class DocumentService {
   ) async {
     try {
       // Update the document's folder_id
-      final updatedImage = ImageModel(
-        id: image.id,
+      final updatedImage = image.copyWith(
         folderId: destinationFolderId,
-        image: image.image,
-        name: image.name,
-        createdOn: image.createdOn,
         modifiedOn: DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
-        size: image.size,
-        width: image.width,
-        height: image.height,
       );
 
       await imageDatabaseHandler.updateImage(updatedImage);

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
+import '../services/ad_service.dart';
+
 class BannerAdWidget extends StatefulWidget {
   const BannerAdWidget({super.key});
 
@@ -13,23 +15,22 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   bool _isAdLoaded = false;
   bool _isCollapsed = false;
 
-  // Banner Ad Unit ID
-  static const String _adUnitId = 'ca-app-pub-3672075156086851/4113110525';
-
   @override
   void initState() {
     super.initState();
-    _loadAd();
+    adService.adsDisabledUntil.addListener(_onAdStateChanged);
+    if (!adService.adsDisabled) _loadAd();
   }
 
   void _loadAd() {
     // Use standard banner size - adaptive size will be handled in build
     _bannerAd = BannerAd(
-      adUnitId: _adUnitId,
+      adUnitId: AdService.bannerAdUnitId,
       request: const AdRequest(),
       size: AdSize.banner,
       listener: BannerAdListener(
         onAdLoaded: (_) {
+          if (!mounted) return;
           setState(() {
             _isAdLoaded = true;
           });
@@ -37,6 +38,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
         onAdFailedToLoad: (ad, error) {
           // Dispose the ad if it fails to load
           ad.dispose();
+          if (!mounted) return;
           setState(() {
             _isAdLoaded = false;
           });
@@ -48,8 +50,13 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
     _bannerAd?.load();
   }
 
+  void _onAdStateChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    adService.adsDisabledUntil.removeListener(_onAdStateChanged);
     _bannerAd?.dispose();
     super.dispose();
   }
@@ -62,7 +69,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_isAdLoaded || _bannerAd == null) {
+    if (adService.adsDisabled || !_isAdLoaded || _bannerAd == null) {
       return const SizedBox.shrink();
     }
 
@@ -72,7 +79,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
         color: Theme.of(context).colorScheme.surface,
         border: Border(
           top: BorderSide(
-            color: Theme.of(context).dividerColor.withOpacity(0.3),
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
             width: 1,
           ),
         ),
@@ -93,24 +100,27 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
                       Text(
                         'Ad',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6),
-                              fontSize: 11,
-                            ),
+                          color: Theme.of(context).textTheme.bodySmall?.color
+                              ?.withValues(alpha: 0.6),
+                          fontSize: 11,
+                        ),
                       ),
                       const SizedBox(width: 4),
                       Icon(
                         _isCollapsed ? Icons.expand_more : Icons.expand_less,
                         size: 16,
-                        color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6),
+                        color: Theme.of(context).textTheme.bodySmall?.color
+                            ?.withValues(alpha: 0.6),
                       ),
                     ],
                   ),
                   Text(
                     _isCollapsed ? 'Show ad' : 'Hide ad',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6),
-                          fontSize: 11,
-                        ),
+                      color: Theme.of(context).textTheme.bodySmall?.color
+                          ?.withValues(alpha: 0.6),
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ),
@@ -135,4 +145,3 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
     );
   }
 }
-

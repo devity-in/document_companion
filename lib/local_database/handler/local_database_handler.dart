@@ -1,11 +1,21 @@
 import 'dart:io' as io;
+import 'dart:typed_data';
 
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../document_file_store.dart';
+
 class LocalDatabaseHandler {
+  static const databaseName = 'document_companion.db';
+  static const _legacyDatabaseName = 'test.db';
+  static const databaseVersion = 6;
+
   static Database? _db;
+
+  /// Overrides where the database is opened. Used by tests.
+  static String? pathOverride;
 
   Future<Database?> get db async {
     if (_db != null) return _db;
@@ -13,31 +23,52 @@ class LocalDatabaseHandler {
     return _db;
   }
 
+  /// Closes the database so the next access reopens it. Used by tests.
+  Future<void> close() async {
+    await _db?.close();
+    _db = null;
+  }
+
   Future<Database?> initDb() async {
-    io.Directory documentsDirectory = await getApplicationDocumentsDirectory();
-    String path = join(documentsDirectory.path, "test.db");
-    var theDb = await openDatabase(
+    await documentFileStore.init();
+    var path = pathOverride;
+    if (path == null) {
+      final documentsDirectory = await getApplicationDocumentsDirectory();
+      path = join(documentsDirectory.path, databaseName);
+      // Early builds shipped the database as "test.db".
+      final legacy = io.File(
+        join(documentsDirectory.path, _legacyDatabaseName),
+      );
+      if (await legacy.exists() && !await io.File(path).exists()) {
+        await legacy.rename(path);
+      }
+    }
+    return openDatabase(
       path,
-      version: 5, // Increment version for indexes
+      version: databaseVersion,
+      onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
-    return theDb;
   }
 
-  void _onCreate(Database db, int version) async {
+  static const _createCurrentImages =
+      "CREATE TABLE CurrentImages(id TEXT PRIMARY KEY, file_path TEXT, timestamp TEXT)";
+  static const _createSettings =
+      "CREATE TABLE IF NOT EXISTS Settings(key TEXT PRIMARY KEY, value TEXT)";
+
+  Future<void> _onCreate(Database db, int version) async {
     // When creating the db, create the table
     // Create [CurrentImage] table
-    await db.execute(
-      "CREATE TABLE CurrentImages(id TEXT PRIMARY KEY, image BLOB, timestamp TEXT, is_shoot_through_fast_camera TEXT, low_res_image BLOB )",
-    );
+    await db.execute(_createCurrentImages);
+    await db.execute(_createSettings);
     // Create [Folders] table
     await db.execute(
       "CREATE TABLE Folders(id TEXT PRIMARY KEY, folder_name TEXT, created_on TEXT, modified_on TEXT )",
     );
     // Create [Images] table for folder-linked images
     await db.execute(
-      "CREATE TABLE Images(id TEXT PRIMARY KEY, folder_id TEXT, image BLOB, name TEXT, created_on TEXT, modified_on TEXT, size INTEGER, width INTEGER, height INTEGER, FOREIGN KEY (folder_id) REFERENCES Folders(id) ON DELETE CASCADE)",
+      "CREATE TABLE Images(id TEXT PRIMARY KEY, folder_id TEXT, file_path TEXT, thumbnail BLOB, name TEXT, created_on TEXT, modified_on TEXT, size INTEGER, width INTEGER, height INTEGER, FOREIGN KEY (folder_id) REFERENCES Folders(id) ON DELETE CASCADE)",
     );
     // Create [RecentDocuments] table for tracking recently accessed documents
     await db.execute(
@@ -90,7 +121,7 @@ class LocalDatabaseHandler {
     );
   }
 
-  void _onUpgrade(Database db, int oldVersion, int newVersion) async {
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       // Add Images table for existing databases
       await db.execute(
@@ -150,6 +181,54 @@ class LocalDatabaseHandler {
       );
       await db.execute(
         "CREATE INDEX IF NOT EXISTS idx_document_tags_tag_id ON Document_Tags(tag_id)",
+      );
+    }
+    if (oldVersion < 6) {
+      await _moveImagesToFiles(db);
+      // Session images are temporary, so the table is simply recreated.
+      await db.execute("DROP TABLE IF EXISTS CurrentImages");
+      await db.execute(_createCurrentImages);
+      await db.execute(_createSettings);
+      // Old "thumbnails" were truncated JPEG data; they are rebuilt on access.
+      await db.execute("DELETE FROM RecentDocuments");
+    }
+  }
+
+  /// Version 6 stores images as files instead of BLOBs.
+  ///
+  /// The BLOBs are read in slices because Android cannot return a row larger
+  /// than its ~2 MB cursor window. Thumbnails are left empty here and the UI
+  /// falls back to the file until the document is next saved.
+  Future<void> _moveImagesToFiles(Database db) async {
+    const chunkSize = 512 * 1024;
+    await db.execute("ALTER TABLE Images ADD COLUMN file_path TEXT");
+    await db.execute("ALTER TABLE Images ADD COLUMN thumbnail BLOB");
+
+    final rows = await db.rawQuery(
+      "SELECT id, length(image) AS bytes FROM Images WHERE image IS NOT NULL",
+    );
+    for (final row in rows) {
+      final id = row['id'] as String;
+      final total = row['bytes'] as int? ?? 0;
+      final builder = BytesBuilder(copy: false);
+      for (var offset = 0; offset < total; offset += chunkSize) {
+        // substr() is 1-based.
+        final chunk = await db.rawQuery(
+          "SELECT substr(image, ?, ?) AS chunk FROM Images WHERE id = ?",
+          [offset + 1, chunkSize, id],
+        );
+        builder.add(chunk.first['chunk'] as Uint8List);
+      }
+      final filePath = await documentFileStore.write(
+        DocumentFileStore.documentsFolder,
+        id,
+        builder.takeBytes(),
+      );
+      await db.update(
+        'Images',
+        {'file_path': filePath, 'image': null},
+        where: 'id = ?',
+        whereArgs: [id],
       );
     }
   }

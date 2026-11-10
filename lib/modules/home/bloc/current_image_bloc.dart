@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:developer' as developer;
+import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:uuid/uuid.dart';
-
+import '../../../local_database/document_repository.dart';
 import '../../../local_database/handler/current_images_database_handler.dart';
 import '../../../local_database/models/current_image.dart';
 
@@ -15,20 +15,32 @@ class CurrentImageBloc {
 
   final CurrentImageDatabaseHandler _databaseHandler =
       CurrentImageDatabaseHandler();
-  final Uuid _uuid = Uuid();
+
+  /// Stages image bytes for the current session.
   Future<void> saveCurrentImage(Uint8List currentImage) async {
     try {
-      _databaseHandler.insertImage(
-        CurrentImage(
-          image: currentImage,
-          timestamp: DateTime.now().toUtc().millisecondsSinceEpoch.toString(),
-          isShootThroughFastCamera: false,
-          lowResImage: currentImage,
-          id: _uuid.v4(),
-        ),
-      );
+      await documentRepository.addPendingFromBytes(currentImage);
     } catch (e) {
       developer.log('Error saving current image', error: e);
+    }
+  }
+
+  /// Stages an image file (e.g. a scanner result) for the current session.
+  Future<void> saveCurrentImageFile(File file) async {
+    try {
+      await documentRepository.addPendingFromFile(file);
+    } catch (e) {
+      developer.log('Error saving current image', error: e);
+    }
+  }
+
+  /// Removes one page from the current session.
+  Future<void> deleteCurrentImageItem(CurrentImage image) async {
+    try {
+      await _databaseHandler.deleteImage(image);
+      await getCurrentImage();
+    } catch (e) {
+      developer.log('Error deleting current image', error: e);
     }
   }
 
@@ -44,7 +56,7 @@ class CurrentImageBloc {
 
   Future<void> deleteCurrentImages() async {
     try {
-      _databaseHandler.deleteCurrentImage();
+      await _databaseHandler.deleteCurrentImage();
       await getCurrentImage(); // Refresh stream after deletion
     } catch (e) {
       developer.log('Error deleting current images', error: e);

@@ -11,7 +11,7 @@ class FolderTableHandler {
 
   Future<void> insertFolder(FolderModel tableData) async {
     final database = await localDatabaseHandler.db;
-    database?.insert(_tableName, tableData.toMap());
+    await database?.insert(_tableName, tableData.toMap());
   }
 
   Future<List<FolderModel>> getFolders() async {

@@ -73,20 +73,24 @@ class FolderBloc {
     // Apply date range filter
     if (_filterStartDate != null || _filterEndDate != null) {
       filtered = filtered.where((folder) {
-        final dateString = _filterDateType == 'modified' 
-            ? folder.modifiedOn 
+        final dateString = _filterDateType == 'modified'
+            ? folder.modifiedOn
             : folder.createdOn;
         final folderDate = DateTime.fromMillisecondsSinceEpoch(
           int.tryParse(dateString) ?? 0,
         );
-        
-        bool matchesStart = _filterStartDate == null || 
-            folderDate.isAfter(_filterStartDate!.subtract(const Duration(days: 1))) ||
+
+        bool matchesStart =
+            _filterStartDate == null ||
+            folderDate.isAfter(
+              _filterStartDate!.subtract(const Duration(days: 1)),
+            ) ||
             folderDate.isAtSameMomentAs(_filterStartDate!);
-        bool matchesEnd = _filterEndDate == null || 
+        bool matchesEnd =
+            _filterEndDate == null ||
             folderDate.isBefore(_filterEndDate!.add(const Duration(days: 1))) ||
             folderDate.isAtSameMomentAs(_filterEndDate!);
-        
+
         return matchesStart && matchesEnd;
       }).toList();
     }
@@ -95,13 +99,13 @@ class FolderBloc {
     if (_selectedTagIds.isNotEmpty) {
       final tagHandler = TagDatabaseHandler();
       final folderIdsWithTags = <String>{};
-      
+
       // Get all folder IDs that have at least one of the selected tags
       for (var tagId in _selectedTagIds) {
         final folderIds = await tagHandler.getFolderIdsByTagId(tagId);
         folderIdsWithTags.addAll(folderIds);
       }
-      
+
       // Filter folders to only those that have the selected tags
       filtered = filtered.where((folder) {
         return folderIdsWithTags.contains(folder.id);
@@ -163,9 +167,9 @@ class FolderBloc {
     await _applyFilters();
   }
 
-  bool get hasActiveFilters => 
-      _filterStartDate != null || 
-      _filterEndDate != null || 
+  bool get hasActiveFilters =>
+      _filterStartDate != null ||
+      _filterEndDate != null ||
       _selectedTagIds.isNotEmpty;
 
   DateTime? get filterStartDate => _filterStartDate;
@@ -174,7 +178,9 @@ class FolderBloc {
   Set<String> get selectedTagIds => Set.from(_selectedTagIds);
 
   Future<void> updateFolder(String folderId, String newName) async {
-    final folder = _allFolders.firstWhere((f) => f.id == folderId);
+    final index = _allFolders.indexWhere((f) => f.id == folderId);
+    if (index < 0) return;
+    final folder = _allFolders[index];
     final updatedFolder = FolderModel(
       id: folder.id,
       folderName: newName,

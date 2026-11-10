@@ -13,9 +13,11 @@ import 'package:document_companion/modules/home/services/tag_service.dart';
 import 'package:document_companion/modules/home/view/document_viewer_page.dart';
 import 'package:document_companion/modules/home/view/filter_bottom_sheet.dart';
 import 'package:document_companion/modules/home/widgets/cached_image_widget.dart';
-import 'package:document_companion/modules/scan/view/scan.dart';
+import 'package:document_companion/modules/home/services/file_import_service.dart';
+import 'package:document_companion/modules/scan/scan_launcher.dart';
 import 'package:document_companion/utils/ux_helpers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 
 import '../models/folder_view_model.dart';
 
@@ -244,9 +246,8 @@ class _FolderPageState extends State<FolderPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Text(
                   '${_selectedImageIds.length} selected',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+                  style: Theme.of(context).textTheme.bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w500),
                 ),
               ),
             ),
@@ -441,7 +442,10 @@ class _FolderPageState extends State<FolderPage> {
           if (snapshot.hasData) {
             final images = snapshot.data ?? [];
             if (images.isEmpty) {
-              return _EmptyFolderState(folderName: widget.folder.folderName);
+              return _EmptyFolderState(
+                folderName: widget.folder.folderName,
+                folderId: widget.folder.id,
+              );
             }
             return Stack(
               children: [
@@ -498,7 +502,7 @@ class _FolderPageState extends State<FolderPage> {
           ? null
           : FloatingActionButton.extended(
               onPressed: () {
-                Navigator.pushNamed(context, Scan.route);
+                ScanLauncher.start(context, folderId: widget.folder.id);
               },
               icon: const Icon(Icons.add_rounded),
               label: const Text('Add Document'),
@@ -542,7 +546,9 @@ class _ImageGridView extends StatelessWidget {
         ),
         itemCount: images.length,
         // Lazy loading optimization
-        cacheExtent: 500, // Cache 500 pixels worth of items
+        scrollCacheExtent: const ScrollCacheExtent.pixels(
+          500,
+        ), // Cache 500 pixels worth of items
         addAutomaticKeepAlives:
             false, // Don't keep widgets alive when scrolled away
         addRepaintBoundaries:
@@ -571,7 +577,9 @@ class _ImageGridView extends StatelessWidget {
         ),
         itemCount: images.length,
         // Lazy loading optimization
-        cacheExtent: 500, // Cache 500 pixels worth of items
+        scrollCacheExtent: const ScrollCacheExtent.pixels(
+          500,
+        ), // Cache 500 pixels worth of items
         addAutomaticKeepAlives:
             false, // Don't keep widgets alive when scrolled away
         addRepaintBoundaries:
@@ -654,8 +662,7 @@ class _ImageCard extends StatelessWidget {
                           top: Radius.circular(16),
                         ),
                         child: CachedImageWidget(
-                          imageData: image.image,
-                          imageId: image.id,
+                          image: image,
                           fit: BoxFit.cover,
                           placeholder: Container(
                             color: Colors.grey[200],
@@ -741,9 +748,8 @@ class _ImageCard extends StatelessWidget {
                                       vertical: 2,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: _parseColor(
-                                        tag.color,
-                                      ).withValues(alpha: 0.2),
+                                      color: _parseColor(tag.color)
+                                          .withValues(alpha: 0.2),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Text(
@@ -808,8 +814,7 @@ class _ImageListTile extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: CachedImageWidget(
-                imageData: image.image,
-                imageId: image.id,
+                image: image,
                 width: 60,
                 height: 60,
                 fit: BoxFit.cover,
@@ -872,9 +877,8 @@ class _ImageListTile extends StatelessWidget {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: _parseColor(
-                              tag.color,
-                            ).withValues(alpha: 0.2),
+                            color: _parseColor(tag.color)
+                                .withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -935,8 +939,9 @@ class _ImageListTile extends StatelessWidget {
 
 class _EmptyFolderState extends StatelessWidget {
   final String folderName;
+  final String folderId;
 
-  const _EmptyFolderState({required this.folderName});
+  const _EmptyFolderState({required this.folderName, required this.folderId});
 
   @override
   Widget build(BuildContext context) {
@@ -976,7 +981,7 @@ class _EmptyFolderState extends StatelessWidget {
               children: [
                 OutlinedButton.icon(
                   onPressed: () {
-                    Navigator.pushNamed(context, Scan.route);
+                    ScanLauncher.start(context, folderId: folderId);
                   },
                   icon: const Icon(Icons.camera_alt_rounded),
                   label: const Text('Scan'),
@@ -984,8 +989,7 @@ class _EmptyFolderState extends StatelessWidget {
                 const SizedBox(width: 12),
                 OutlinedButton.icon(
                   onPressed: () {
-                    // Import functionality can be accessed from homepage
-                    Navigator.pop(context);
+                    fileImportService.importImagesToFolder(context, folderId);
                   },
                   icon: const Icon(Icons.file_upload_rounded),
                   label: const Text('Import'),

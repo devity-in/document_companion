@@ -85,16 +85,14 @@ class BatchOperationsService {
     String sourceFolderId,
   ) async {
     // Get available folders (excluding current folder)
-    final folders = await folderBloc.getAllFolders();
+    final folders = folderBloc.getAllFolders();
     final availableFolders = folders
         .where((folder) => folder.id != sourceFolderId)
         .toList();
 
     if (availableFolders.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No other folders available'),
-        ),
+        const SnackBar(content: Text('No other folders available')),
       );
       return;
     }
@@ -116,27 +114,25 @@ class BatchOperationsService {
               ),
               const SizedBox(height: 16),
               Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: availableFolders.length,
-                  itemBuilder: (context, index) {
-                    final folder = availableFolders[index];
-                    return RadioListTile<String>(
-                      title: Text(folder.folderName),
-                      value: folder.id,
-                      groupValue: selectedFolderId,
-                      onChanged: (value) {
-                        selectedFolderId = value;
-                        Navigator.pop(dialogContext);
-                        _performBatchMove(
-                          context,
-                          images,
-                          sourceFolderId,
-                          selectedFolderId!,
-                        );
-                      },
-                    );
+                child: RadioGroup<String>(
+                  groupValue: selectedFolderId,
+                  onChanged: (value) {
+                    if (value == null) return;
+                    selectedFolderId = value;
+                    Navigator.pop(dialogContext);
+                    _performBatchMove(context, images, sourceFolderId, value);
                   },
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: availableFolders.length,
+                    itemBuilder: (context, index) {
+                      final folder = availableFolders[index];
+                      return RadioListTile<String>(
+                        title: Text(folder.folderName),
+                        value: folder.id,
+                      );
+                    },
+                  ),
                 ),
               ),
             ],
@@ -170,18 +166,9 @@ class BatchOperationsService {
     try {
       // Move all selected images
       for (var image in images) {
-        final updatedImage = ImageModel(
-          id: image.id,
-          folderId: destinationFolderId,
-          image: image.image,
-          name: image.name,
-          createdOn: image.createdOn,
-          modifiedOn: image.modifiedOn,
-          size: image.size,
-          width: image.width,
-          height: image.height,
+        await imageDatabaseHandler.updateImage(
+          image.copyWith(folderId: destinationFolderId),
         );
-        await imageDatabaseHandler.updateImage(updatedImage);
       }
 
       // Refresh folder images
@@ -225,7 +212,7 @@ class BatchOperationsService {
 
     try {
       // Convert images to Uint8List format
-      final imageBytes = images.map((img) => img.image).toList();
+      final imageBytes = [for (final image in images) await image.readBytes()];
 
       // Create PDF from images
       final pdfBytes = await pdfService.createPdfFromImageBytes(imageBytes);
@@ -250,4 +237,3 @@ class BatchOperationsService {
 }
 
 final batchOperationsService = BatchOperationsService();
-

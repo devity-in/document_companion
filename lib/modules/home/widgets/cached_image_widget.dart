@@ -1,10 +1,10 @@
-import 'dart:typed_data';
+import 'package:document_companion/local_database/models/image_model.dart';
 import 'package:flutter/material.dart';
-import '../services/image_cache_service.dart';
 
-class CachedImageWidget extends StatefulWidget {
-  final Uint8List imageData;
-  final String imageId;
+/// Shows a document preview: the stored thumbnail when there is one,
+/// otherwise the image file decoded at a reduced size.
+class CachedImageWidget extends StatelessWidget {
+  final ImageModel image;
   final BoxFit fit;
   final double? width;
   final double? height;
@@ -13,8 +13,7 @@ class CachedImageWidget extends StatefulWidget {
 
   const CachedImageWidget({
     super.key,
-    required this.imageData,
-    required this.imageId,
+    required this.image,
     this.fit = BoxFit.cover,
     this.width,
     this.height,
@@ -22,94 +21,52 @@ class CachedImageWidget extends StatefulWidget {
     this.errorWidget,
   });
 
-  @override
-  State<CachedImageWidget> createState() => _CachedImageWidgetState();
-}
-
-class _CachedImageWidgetState extends State<CachedImageWidget> {
-  Uint8List? _thumbnail;
-  bool _isLoading = true;
-  bool _hasError = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadThumbnail();
+  Widget _error(BuildContext context, Object error, StackTrace? stackTrace) {
+    return errorWidget ??
+        Container(
+          width: width,
+          height: height,
+          color: Colors.grey[300],
+          child: const Icon(Icons.error_outline, color: Colors.grey),
+        );
   }
 
-  Future<void> _loadThumbnail() async {
-    if (!mounted) return;
-
-    setState(() {
-      _isLoading = true;
-      _hasError = false;
-    });
-
-    try {
-      final thumbnail = await imageCacheService.getThumbnail(
-        widget.imageId,
-        widget.imageData,
-      );
-
-      if (mounted) {
-        setState(() {
-          _thumbnail = thumbnail ?? widget.imageData;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _hasError = true;
-          _isLoading = false;
-          _thumbnail = widget.imageData; // Fallback to full image
-        });
-      }
-    }
+  Widget _frame(
+    BuildContext context,
+    Widget child,
+    int? frame,
+    bool wasSynchronouslyLoaded,
+  ) {
+    if (frame != null || wasSynchronouslyLoaded) return child;
+    return placeholder ?? child;
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_hasError && widget.errorWidget != null) {
-      return widget.errorWidget!;
-    }
-
-    if (_isLoading && widget.placeholder != null) {
-      return widget.placeholder!;
-    }
-
-    if (_thumbnail == null) {
-      return widget.placeholder ??
-          Container(
-            width: widget.width,
-            height: widget.height,
-            color: Colors.grey[300],
-            child: const Center(child: CircularProgressIndicator()),
+    final thumbnail = image.thumbnail;
+    final Widget imageWidget = thumbnail != null
+        ? Image.memory(
+            thumbnail,
+            fit: fit,
+            width: width,
+            height: height,
+            gaplessPlayback: true,
+            errorBuilder: _error,
+          )
+        : Image.file(
+            image.file,
+            fit: fit,
+            width: width,
+            height: height,
+            cacheWidth: 400,
+            frameBuilder: _frame,
+            errorBuilder: _error,
           );
-    }
-
-    final imageWidget = Image.memory(
-      _thumbnail!,
-      fit: widget.fit,
-      width: widget.width,
-      height: widget.height,
-      errorBuilder: (context, error, stackTrace) {
-        return widget.errorWidget ??
-            Container(
-              width: widget.width,
-              height: widget.height,
-              color: Colors.grey[300],
-              child: const Icon(Icons.error_outline, color: Colors.grey),
-            );
-      },
-    );
 
     // If width/height are not specified, expand to fill available space
-    if (widget.width == null && widget.height == null) {
+    if (width == null && height == null) {
       return SizedBox.expand(child: imageWidget);
     }
-
     return imageWidget;
   }
 }
-

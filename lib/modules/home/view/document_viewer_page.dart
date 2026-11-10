@@ -94,9 +94,7 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
             transformationController: _transformationController,
             minScale: 0.5,
             maxScale: 4.0,
-            child: Center(
-              child: Image.memory(image.image, fit: BoxFit.contain),
-            ),
+            child: Center(child: Image.file(image.file, fit: BoxFit.contain)),
           );
         },
       ),

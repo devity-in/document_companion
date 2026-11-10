@@ -13,9 +13,7 @@ import 'app_state.dart';
 class AppBloc extends Bloc<AppEvent, AppState> {
   final ImageUtils _imageUtils;
 
-  AppBloc({required ImageUtils imageUtils})
-    : _imageUtils = imageUtils,
-      super(AppState.init()) {
+  AppBloc({required this._imageUtils}) : super(AppState.init()) {
     on<AppCameraInitialized>(_cameraInitialized);
     on<AppPhotoTaken>(_photoTaken);
     on<AppPageChanged>(_pageChanged);

@@ -27,10 +27,7 @@ class RecentDocumentsBloc {
       final existingDocument = await _databaseHandler
           .getRecentDocumentByDocumentId(image.id);
 
-      // Create thumbnail (first 10KB of image for quick preview)
-      final thumbnail = image.image.length > 10000
-          ? image.image.sublist(0, 10000)
-          : image.image;
+      final thumbnail = image.thumbnail;
 
       final recentDocument = RecentDocumentModel(
         // Reuse existing ID if document already exists, otherwise create new UUID

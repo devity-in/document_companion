@@ -71,9 +71,12 @@ class ButtonTakePhoto extends StatelessWidget {
                             borderRadius: BorderRadius.circular(10),
                             child: Stack(
                               children: [
-                                Image.memory(
-                                  snapshot.data!.last.image,
+                                Image.file(
+                                  snapshot.data!.last.file,
                                   fit: BoxFit.cover,
+                                  width: 56,
+                                  height: 56,
+                                  cacheWidth: 168,
                                 ),
                                 Positioned(
                                   top: 4,
