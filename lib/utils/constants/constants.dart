@@ -21,7 +21,7 @@ class Constant {
     ),
     ServiceOperation(
       Icons.compress_outlined,
-      'File Compress',
+      'Compress PDF',
       "/",
     ),
     ServiceOperation(

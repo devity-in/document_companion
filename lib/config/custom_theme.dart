@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../local_database/handler/settings_database_handler.dart';
 import 'custom_colors.dart';
 
 class CustomTheme with ChangeNotifier {
@@ -17,9 +18,27 @@ class CustomTheme with ChangeNotifier {
   ThemeMode get currentTheme => _isDarkTheme ? ThemeMode.dark : ThemeMode.light;
   bool get isDarkMode => _isDarkTheme;
 
+  static const _darkModeKey = 'dark_mode';
+
+  /// Restores the theme chosen in a previous session.
+  Future<void> load() async {
+    try {
+      final stored = await settingsDatabaseHandler.getValue(_darkModeKey);
+      if (stored != null) {
+        _isDarkTheme = stored == 'true';
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Could not load theme: $e');
+    }
+  }
+
   void toggleTheme() {
     _isDarkTheme = !_isDarkTheme;
     notifyListeners();
+    settingsDatabaseHandler
+        .setValue(_darkModeKey, _isDarkTheme.toString())
+        .ignore();
   }
 
   static ThemeData get lightTheme {

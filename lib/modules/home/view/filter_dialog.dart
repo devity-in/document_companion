@@ -90,7 +90,7 @@ class _FilterDialogState extends State<FilterDialog> {
       dateType: _dateType,
     );
     await folderBloc.applyTagFilter(_selectedTagIds);
-    if (context.mounted) {
+    if (mounted) {
       Navigator.of(context).pop();
     }
   }
@@ -103,7 +103,7 @@ class _FilterDialogState extends State<FilterDialog> {
     });
     folderBloc.clearDateFilter();
     await folderBloc.clearTagFilter();
-    if (context.mounted) {
+    if (mounted) {
       Navigator.of(context).pop();
     }
   }
@@ -111,9 +111,7 @@ class _FilterDialogState extends State<FilterDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Container(
         constraints: const BoxConstraints(maxWidth: 400),
         padding: const EdgeInsets.all(24),
@@ -126,9 +124,8 @@ class _FilterDialogState extends State<FilterDialog> {
               children: [
                 Text(
                   'Filter Folders',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                  style: Theme.of(context).textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 IconButton(
                   icon: const Icon(Icons.close_rounded),
@@ -139,23 +136,14 @@ class _FilterDialogState extends State<FilterDialog> {
               ],
             ),
             const SizedBox(height: 24),
-            
+
             // Date Type Selection
-            Text(
-              'Filter by:',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
+            Text('Filter by:', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
             SegmentedButton<String>(
               segments: const [
-                ButtonSegment(
-                  value: 'created',
-                  label: Text('Created Date'),
-                ),
-                ButtonSegment(
-                  value: 'modified',
-                  label: Text('Modified Date'),
-                ),
+                ButtonSegment(value: 'created', label: Text('Created Date')),
+                ButtonSegment(value: 'modified', label: Text('Modified Date')),
               ],
               selected: {_dateType ?? 'created'},
               onSelectionChanged: (Set<String> newSelection) {
@@ -197,10 +185,7 @@ class _FilterDialogState extends State<FilterDialog> {
             const SizedBox(height: 24),
 
             // Date Range Selection
-            Text(
-              'Date Range:',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
+            Text('Date Range:', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -228,9 +213,8 @@ class _FilterDialogState extends State<FilterDialog> {
                             _startDate != null
                                 ? '${_startDate!.day}/${_startDate!.month}/${_startDate!.year}'
                                 : 'Select date',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w500,
-                                ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(fontWeight: FontWeight.w500),
                           ),
                         ],
                       ),
@@ -262,9 +246,8 @@ class _FilterDialogState extends State<FilterDialog> {
                             _endDate != null
                                 ? '${_endDate!.day}/${_endDate!.month}/${_endDate!.year}'
                                 : 'Select date',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w500,
-                                ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(fontWeight: FontWeight.w500),
                           ),
                         ],
                       ),
@@ -373,10 +356,7 @@ class _QuickFilterChip extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  const _QuickFilterChip({
-    required this.label,
-    required this.onTap,
-  });
+  const _QuickFilterChip({required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -386,17 +366,11 @@ class _QuickFilterChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          border: Border.all(
-            color: Theme.of(context).dividerColor,
-          ),
+          border: Border.all(color: Theme.of(context).dividerColor),
           borderRadius: BorderRadius.circular(20),
         ),
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
+        child: Text(label, style: Theme.of(context).textTheme.bodySmall),
       ),
     );
   }
 }
-

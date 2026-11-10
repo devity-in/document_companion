@@ -5,8 +5,10 @@ import '../view/save_image_bottom_sheet.dart';
 
 class SaveImageBloc {
   void openSaveImageSheet() {
+    final context = CustomKey.navigatorKey.currentContext;
+    if (context == null) return;
     showModalBottomSheet(
-      context: CustomKey.navigatorKey.currentContext!,
+      context: context,
       builder: (context) => SaveImageBottomSheet(),
     );
   }

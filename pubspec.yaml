@@ -18,7 +18,8 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ">=3.10.0 <4.0.0"
+  sdk: ">=3.13.0 <4.0.0"
+  flutter: ">=3.47.0"
 
 dependencies:
   flutter:
@@ -29,30 +30,27 @@ dependencies:
   # State Management
   bloc: ^9.1.0
   flutter_bloc: ^9.1.1
-  equatable: ^2.0.5
+  equatable: ^3.0.0
   
   # Camera & Media
-  camera: ^0.11.0+2
+  camera: ^0.12.2
   image_picker: ^1.1.2
   
   # Storage & Files
   path_provider: ^2.1.2
   path: ^1.9.0
   sqflite: ^2.3.3+2
-  file: ^7.0.1
-  file_picker: ^8.1.4
+  file_picker: ^13.3.3
   
   # PDF Generation
   pdf: ^3.11.1
   printing: ^5.13.2
-  syncfusion_flutter_pdf: ^28.1.5
+  syncfusion_flutter_pdf: ^35.1.43
   
   # Sharing
-  share_plus: ^10.1.2
+  share_plus: ^13.3.1
   
   # Permissions
-  permission_handler: ^12.0.1
-  
   # Utilities
   intl: ^0.20.2
   uuid: ^4.5.1
@@ -60,16 +58,18 @@ dependencies:
   archive: ^4.0.7
   
   # UI
-  cupertino_icons: ^1.0.8
+  cupertino_icons: ^2.0.0
   
   # Ads
-  google_mobile_ads: ^5.1.0
+  google_mobile_ads: ^9.2.0
+  google_mlkit_document_scanner: ^0.7.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  flutter_launcher_icons: ^0.13.1
+  flutter_launcher_icons: ^0.14.4
+  sqflite_common_ffi: ^2.4.6
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

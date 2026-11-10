@@ -1,4 +1,7 @@
-import 'package:flutter/material.dart';
+import 'dart:io';
+
+import 'package:document_companion/local_database/handler/settings_database_handler.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 /// Service to manage interstitial and rewarded ads
@@ -12,14 +15,65 @@ class AdService {
   RewardedAd? _rewardedAd;
   bool _isInterstitialReady = false;
   bool _isRewardedReady = false;
-  
+
   // Counter to limit ad frequency
   int _operationCount = 0;
   static const int _adFrequency = 3; // Show ad every 3 operations
 
-  // Ad Unit IDs
-  static const String _interstitialAdUnitId = 'ca-app-pub-3672075156086851/3071491590'; // Interstitial Ad
-  static const String _rewardedAdUnitId = 'ca-app-pub-3672075156086851/4328732948'; // Rewarded Ad
+  static const _adsDisabledUntilKey = 'ads_disabled_until';
+
+  /// When set and in the future, no banner or interstitial ads are shown.
+  /// Earned by watching a rewarded ad.
+  final ValueNotifier<DateTime?> adsDisabledUntil = ValueNotifier(null);
+
+  bool get adsDisabled {
+    final until = adsDisabledUntil.value;
+    return until != null && until.isAfter(DateTime.now());
+  }
+
+  /// Restores the ad-free period saved by a previous session.
+  Future<void> loadState() async {
+    try {
+      final stored = await settingsDatabaseHandler.getValue(
+        _adsDisabledUntilKey,
+      );
+      final millis = int.tryParse(stored ?? '');
+      if (millis != null) {
+        adsDisabledUntil.value = DateTime.fromMillisecondsSinceEpoch(millis);
+      }
+    } catch (e) {
+      debugPrint('Could not load ad state: $e');
+    }
+  }
+
+  /// Turns banner and interstitial ads off for [duration], starting now.
+  Future<void> disableAdsFor(Duration duration) async {
+    final until = DateTime.now().add(duration);
+    adsDisabledUntil.value = until;
+    await settingsDatabaseHandler.setValue(
+      _adsDisabledUntilKey,
+      until.millisecondsSinceEpoch.toString(),
+    );
+  }
+
+  // Ad unit IDs. Debug builds use Google's published test units: loading
+  // live units during development counts as invalid traffic and can get
+  // the AdMob account suspended.
+  static String get bannerAdUnitId => kDebugMode
+      ? (Platform.isIOS
+            ? 'ca-app-pub-3940256099942544/2934735716'
+            : 'ca-app-pub-3940256099942544/6300978111')
+      : 'ca-app-pub-3672075156086851/4113110525';
+  static String get _interstitialAdUnitId => kDebugMode
+      ? (Platform.isIOS
+            ? 'ca-app-pub-3940256099942544/4411468910'
+            : 'ca-app-pub-3940256099942544/1033173712')
+      : 'ca-app-pub-3672075156086851/3071491590';
+  static String get _rewardedAdUnitId => kDebugMode
+      ? (Platform.isIOS
+            ? 'ca-app-pub-3940256099942544/1712485313'
+            : 'ca-app-pub-3940256099942544/5224354917')
+      : 'ca-app-pub-3672075156086851/4328732948';
 
   /// Loads an interstitial ad
   void loadInterstitialAd() {
@@ -61,9 +115,11 @@ class AdService {
   /// Shows interstitial ad after operation completion
   /// Returns true if ad was shown, false otherwise
   bool showInterstitialAdIfReady() {
+    if (adsDisabled) return false;
+
     // Increment operation counter
     _operationCount++;
-    
+
     // Only show ad every N operations
     if (_operationCount < _adFrequency) {
       return false;
@@ -144,7 +200,7 @@ class AdService {
       // Store callbacks for use in listeners
       _rewardedAdDismissedCallback = onAdDismissed;
       _rewardedAdFailedCallback = onAdFailedToShow;
-      
+
       _rewardedAd!.show(
         onUserEarnedReward: (ad, reward) {
           debugPrint('User earned reward: ${reward.amount} ${reward.type}');
@@ -186,4 +242,3 @@ class AdService {
 }
 
 final adService = AdService();
-

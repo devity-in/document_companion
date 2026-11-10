@@ -41,33 +41,29 @@ class BottomBarEditPhoto extends StatelessWidget {
             builder: (context, AsyncSnapshot<FilterType> snapshot) {
               final currentFilter = snapshot.data ?? FilterType.natural;
 
+              const filters = [
+                (FilterType.natural, 'Original', Icons.image_outlined),
+                (FilterType.enhance, 'Enhance', Icons.auto_awesome_rounded),
+                (FilterType.gray, 'Gray', Icons.filter_b_and_w_rounded),
+                (FilterType.blackWhite, 'B&W', Icons.contrast_rounded),
+              ];
+
               return Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _FilterButton(
-                    label: 'Natural',
-                    icon: Icons.auto_awesome_rounded,
-                    isSelected: currentFilter == FilterType.natural,
-                    onTap: () => context
-                        .read<DocumentScannerController>()
-                        .applyFilter(FilterType.natural),
-                  ),
-                  _FilterButton(
-                    label: 'Gray',
-                    icon: Icons.filter_b_and_w_rounded,
-                    isSelected: currentFilter == FilterType.gray,
-                    onTap: () => context
-                        .read<DocumentScannerController>()
-                        .applyFilter(FilterType.gray),
-                  ),
-                  _FilterButton(
-                    label: 'Eco',
-                    icon: Icons.eco_rounded,
-                    isSelected: currentFilter == FilterType.eco,
-                    onTap: () => context
-                        .read<DocumentScannerController>()
-                        .applyFilter(FilterType.eco),
-                  ),
+                  for (final (type, label, icon) in filters)
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: _FilterButton(
+                          label: label,
+                          icon: icon,
+                          isSelected: currentFilter == type,
+                          onTap: () => context
+                              .read<DocumentScannerController>()
+                              .applyFilter(type),
+                        ),
+                      ),
+                    ),
                 ],
               );
             },
@@ -97,7 +93,7 @@ class _FilterButton extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
         decoration: BoxDecoration(
           color: isSelected
               ? CustomColors.primary.withValues(alpha: 0.1)

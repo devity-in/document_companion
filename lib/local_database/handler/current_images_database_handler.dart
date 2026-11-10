@@ -1,35 +1,37 @@
-import 'dart:typed_data';
-
 import 'package:document_companion/local_database/handler/local_database_handler.dart';
 
+import '../document_file_store.dart';
 import '../models/current_image.dart';
 
+/// Pages captured in the current session, waiting to be saved to a folder.
 class CurrentImageDatabaseHandler {
   static const _tableName = 'CurrentImages';
-  void insertImage(CurrentImage currentImage) async {
+
+  Future<void> insertImage(CurrentImage currentImage) async {
     final database = await localDatabaseHandler.db;
-    database?.insert(_tableName, currentImage.toMap());
+    await database?.insert(_tableName, currentImage.toMap());
   }
 
   Future<List<CurrentImage>> getCurrentImage() async {
     final database = await localDatabaseHandler.db;
-    final List<Map<String, Object?>>? maps = await database?.query(_tableName);
-    return List.generate(maps?.length ?? 0, (i) {
-      final map = maps?.elementAt(i);
-      return CurrentImage(
-        id: map!['id'] as String,
-        image: map['image'] as Uint8List,
-        timestamp: map['timestamp'] as String,
-        isShootThroughFastCamera: bool.fromEnvironment(
-          map['is_shoot_through_fast_camera'] as String,
-        ),
-        lowResImage: map['low_res_image'] as Uint8List,
-      );
-    });
+    final maps = await database?.query(_tableName, orderBy: 'timestamp ASC');
+    return [for (final map in maps ?? const []) CurrentImage.fromMap(map)];
   }
 
-  Future<void> deleteCurrentImage() async {
+  /// Removes a single pending page and its file.
+  Future<void> deleteImage(CurrentImage image) async {
     final database = await localDatabaseHandler.db;
-    database?.delete(_tableName);
+    await database?.delete(_tableName, where: 'id = ?', whereArgs: [image.id]);
+    await documentFileStore.delete(image.filePath);
+  }
+
+  /// Clears the whole session, deleting any files still in the pending folder.
+  Future<void> deleteCurrentImage() async {
+    final images = await getCurrentImage();
+    final database = await localDatabaseHandler.db;
+    await database?.delete(_tableName);
+    for (final image in images) {
+      await documentFileStore.delete(image.filePath);
+    }
   }
 }

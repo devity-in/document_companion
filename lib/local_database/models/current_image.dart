@@ -1,25 +1,38 @@
+import 'dart:io';
 import 'dart:typed_data';
 
+import '../document_file_store.dart';
+
+/// A page captured or imported in the current session that has not been
+/// saved to a folder yet.
 class CurrentImage {
   CurrentImage({
     required this.id,
-    required this.image,
+    required this.filePath,
     required this.timestamp,
-    required this.isShootThroughFastCamera,
-    required this.lowResImage,
   });
+
   String id;
-  Uint8List image;
+
+  /// Path relative to [DocumentFileStore.baseDirectory].
+  String filePath;
+
+  /// Milliseconds since epoch, as a string.
   String timestamp;
-  bool isShootThroughFastCamera;
-  Uint8List lowResImage;
+
+  File get file => documentFileStore.fileFor(filePath);
+
+  Future<Uint8List> readBytes() => file.readAsBytes();
+
   Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'image': image,
-      'timestamp': timestamp,
-      'is_shoot_through_fast_camera': isShootThroughFastCamera.toString(),
-      'low_res_image': lowResImage,
-    };
+    return {'id': id, 'file_path': filePath, 'timestamp': timestamp};
+  }
+
+  factory CurrentImage.fromMap(Map<String, dynamic> map) {
+    return CurrentImage(
+      id: map['id'] as String,
+      filePath: map['file_path'] as String,
+      timestamp: map['timestamp'] as String,
+    );
   }
 }

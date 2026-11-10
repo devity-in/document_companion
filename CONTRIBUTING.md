@@ -20,8 +20,8 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ### Prerequisites
 
-- Flutter SDK 3.0 or higher
-- Dart SDK 3.0 or higher
+- Flutter SDK 3.47 or higher
+- Dart SDK 3.13 or higher
 - Git
 - A code editor (VS Code, Android Studio, or IntelliJ IDEA recommended)
 
@@ -34,7 +34,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 2. **Clone your fork**
    ```bash
-   git clone https://github.com/yourusername/document_companion.git
+   git clone https://github.com/devity-in/document_companion.git
    cd document_companion
    ```
 
@@ -100,7 +100,7 @@ git merge main
 
 ```bash
 # Format all Dart files
-flutter format .
+dart format .
 
 # Analyze code
 flutter analyze
@@ -189,7 +189,7 @@ Fixes #456
 3. **Check code quality**
    ```bash
    flutter analyze
-   flutter format .
+   dart format .
    ```
 
 4. **Test on multiple platforms** (if possible)
@@ -265,8 +265,8 @@ For feature requests, include:
 
 ## Questions?
 
-- Open a [GitHub Discussion](https://github.com/yourusername/document_companion/discussions)
-- Check existing [Issues](https://github.com/yourusername/document_companion/issues)
+- Open a [GitHub Discussion](https://github.com/devity-in/document_companion/discussions)
+- Check existing [Issues](https://github.com/devity-in/document_companion/issues)
 - Review the [README](README.md)
 
 ## Thank You!

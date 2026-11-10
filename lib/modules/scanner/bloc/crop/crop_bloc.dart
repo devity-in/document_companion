@@ -16,10 +16,8 @@ class CropBloc extends Bloc<CropEvent, CropState> {
   final DotUtils _dotUtils;
   final ImageUtils _imageUtils;
 
-  CropBloc({required DotUtils dotUtils, required ImageUtils imageUtils})
-    : _dotUtils = dotUtils,
-      _imageUtils = imageUtils,
-      super(CropState.init()) {
+  CropBloc({required this._dotUtils, required this._imageUtils})
+    : super(CropState.init()) {
     on<CropAreaInitialized>(_areaInitialized);
     on<CropDotMoved>(_dotMoved);
     on<CropPhotoByAreaCropped>(_photoByAreaCropped);
@@ -42,7 +40,18 @@ class CropBloc extends Bloc<CropEvent, CropState> {
 
     _imageRect = _imageUtils.imageRect(newScreenSize);
 
-    Area area = event.defaultAreaInitial;
+    // Without a detected document, start with (almost) the whole photo.
+    final insetX = newScreenSize.width * 0.08;
+    final insetY = newScreenSize.height * 0.08;
+    Area area = Area(
+      topLeft: Point(insetX, insetY),
+      topRight: Point(newScreenSize.width - insetX, insetY),
+      bottomLeft: Point(insetX, newScreenSize.height - insetY),
+      bottomRight: Point(
+        newScreenSize.width - insetX,
+        newScreenSize.height - insetY,
+      ),
+    );
 
     if (event.areaInitial != null) {
       final imageDecoded = await decodeImageFromList(

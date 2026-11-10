@@ -2,25 +2,25 @@ import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:convert';
+
 import 'package:archive/archive.dart';
 
-import 'package:document_companion/local_database/handler/image_database_handler.dart';
+import 'package:document_companion/config/custom_key.dart';
+import 'package:document_companion/local_database/document_repository.dart';
 import 'package:document_companion/local_database/models/current_image.dart';
-import 'package:document_companion/local_database/models/image_model.dart';
 import 'package:document_companion/modules/home/bloc/folder_bloc.dart';
 import 'package:document_companion/modules/home/bloc/image_bloc.dart';
 import 'package:document_companion/modules/home/models/folder_view_model.dart';
 import 'package:document_companion/modules/home/services/ad_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart' as sf;
-import 'package:uuid/uuid.dart';
 
 class PdfService {
   /// Creates a PDF from a list of images
@@ -28,7 +28,7 @@ class PdfService {
     final pdf = pw.Document();
 
     for (var currentImage in images) {
-      final image = pw.MemoryImage(currentImage.image);
+      final image = pw.MemoryImage(await currentImage.readBytes());
 
       pdf.addPage(
         pw.Page(
@@ -65,10 +65,58 @@ class PdfService {
     return pdf.save();
   }
 
+  /// Encodes a rasterised PDF page as JPEG. PNG output of a scanned page is
+  /// several times larger, which made "compressed" PDFs grow.
+  Uint8List _rasterToJpeg(PdfRaster raster, {int quality = 85}) {
+    final image = img.Image.fromBytes(
+      width: raster.width,
+      height: raster.height,
+      bytes: raster.pixels.buffer,
+      numChannels: 4,
+    );
+    return img.encodeJpg(image, quality: quality);
+  }
+
+  /// A page that shows [jpeg] edge to edge, sized like the source page.
+  pw.Page _rasterPage(PdfRaster raster, Uint8List jpeg, double dpi) {
+    final image = pw.MemoryImage(jpeg);
+    return pw.Page(
+      pageFormat: PdfPageFormat(
+        raster.width * 72 / dpi,
+        raster.height * 72 / dpi,
+      ),
+      margin: pw.EdgeInsets.zero,
+      build: (pw.Context context) => pw.Image(image, fit: pw.BoxFit.fill),
+    );
+  }
+
+  /// Copies pages [start]..[end] (0-based, inclusive) of [source] into
+  /// [target] without rasterising, so text stays selectable and sharp.
+  void _copyPages(
+    sf.PdfDocument source,
+    sf.PdfDocument target, {
+    int start = 0,
+    int? end,
+  }) {
+    final last = end ?? source.pages.count - 1;
+    for (var i = start; i <= last && i < source.pages.count; i++) {
+      final page = source.pages[i];
+      final section = target.sections!.add();
+      section.pageSettings.size = page.size;
+      section.pageSettings.margins.all = 0;
+      section.pages.add().graphics.drawPdfTemplate(
+        page.createTemplate(),
+        Offset.zero,
+        page.size,
+      );
+    }
+  }
+
   /// Saves PDF to device storage
   Future<File?> savePdfToDevice(Uint8List pdfBytes, String fileName) async {
     try {
-      final directory = await getApplicationDocumentsDirectory();
+      // Only used to hand the file to the share sheet.
+      final directory = await getTemporaryDirectory();
       final file = File('${directory.path}/$fileName.pdf');
       await file.writeAsBytes(pdfBytes);
       return file;
@@ -78,12 +126,35 @@ class PdfService {
     }
   }
 
+  /// Lets the user choose where to save the PDF (Downloads, Drive, ...).
+  Future<void> savePdfWithPicker(Uint8List pdfBytes, String fileName) async {
+    try {
+      final uri = await FilePicker.saveFile(
+        fileName: '$fileName.pdf',
+        bytes: pdfBytes,
+        mimeType: 'application/pdf',
+      );
+      if (uri != null) {
+        CustomKey.scaffoldMessengerKey.currentState?.showSnackBar(
+          SnackBar(content: Text('Saved $fileName.pdf')),
+        );
+      }
+    } catch (e) {
+      developer.log('Error saving PDF', error: e);
+      CustomKey.scaffoldMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text('Could not save PDF: $e')),
+      );
+    }
+  }
+
   /// Shares PDF using system share sheet
   Future<void> sharePdf(Uint8List pdfBytes, String fileName) async {
     try {
       final file = await savePdfToDevice(pdfBytes, fileName);
       if (file != null) {
-        await Share.shareXFiles([XFile(file.path)], subject: fileName);
+        await SharePlus.instance.share(
+          ShareParams(files: [XFile(file.path)], subject: fileName),
+        );
       }
     } catch (e) {
       developer.log('Error sharing PDF', error: e);
@@ -120,6 +191,13 @@ class PdfService {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
+              printPdf(pdfBytes, fileName);
+            },
+            child: const Text('Print'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
               sharePdf(pdfBytes, fileName);
             },
             child: const Text('Share'),
@@ -127,9 +205,9 @@ class PdfService {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              printPdf(pdfBytes, fileName);
+              savePdfWithPicker(pdfBytes, fileName);
             },
-            child: const Text('Print'),
+            child: const Text('Save'),
           ),
         ],
       ),
@@ -147,33 +225,30 @@ class PdfService {
         return null;
       }
 
+      try {
+        final merged = sf.PdfDocument();
+        for (final pdfFile in pdfFiles) {
+          final source = sf.PdfDocument(
+            inputBytes: await pdfFile.readAsBytes(),
+          );
+          _copyPages(source, merged);
+          source.dispose();
+        }
+        final bytes = Uint8List.fromList(await merged.save());
+        merged.dispose();
+        return bytes;
+      } catch (e) {
+        developer.log('Lossless merge failed, rasterising instead', error: e);
+      }
+
       final mergedPdf = pw.Document();
+      const dpi = 150.0;
 
       for (var pdfFile in pdfFiles) {
         try {
           final pdfBytes = await pdfFile.readAsBytes();
-
-          // Render PDF pages as images using printing package
-          // Printing.raster returns a Stream<PdfRaster>
-          await for (var img in Printing.raster(pdfBytes, dpi: 150)) {
-            try {
-              final imgBytes = await img.toPng();
-              final pdfImage = pw.MemoryImage(imgBytes);
-
-              mergedPdf.addPage(
-                pw.Page(
-                  pageFormat: PdfPageFormat.a4,
-                  build: (pw.Context context) {
-                    return pw.Center(
-                      child: pw.Image(pdfImage, fit: pw.BoxFit.contain),
-                    );
-                  },
-                ),
-              );
-            } catch (e) {
-              developer.log('Error converting page to image', error: e);
-              // Continue with next page
-            }
+          await for (var raster in Printing.raster(pdfBytes, dpi: dpi)) {
+            mergedPdf.addPage(_rasterPage(raster, _rasterToJpeg(raster), dpi));
           }
         } catch (e) {
           developer.log('Error processing PDF ${pdfFile.path}', error: e);
@@ -181,7 +256,7 @@ class PdfService {
         }
       }
 
-      return mergedPdf.save();
+      return await mergedPdf.save();
     } catch (e) {
       developer.log('Error merging PDFs', error: e);
       return null;
@@ -230,13 +305,12 @@ class PdfService {
   Future<void> showMergePdfDialog(BuildContext context) async {
     try {
       // Show file picker to select multiple PDFs
-      final result = await FilePicker.platform.pickFiles(
+      final pickedFiles = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
-        allowMultiple: true,
       );
 
-      if (result == null || result.files.isEmpty) {
+      if (pickedFiles.isEmpty) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -248,7 +322,7 @@ class PdfService {
         return;
       }
 
-      if (result.files.length < 2) {
+      if (pickedFiles.length < 2) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -271,14 +345,14 @@ class PdfService {
 
       // Convert PlatformFile to File objects
       final pdfFiles = <File>[];
-      for (var platformFile in result.files) {
+      for (var platformFile in pickedFiles) {
         if (platformFile.path != null) {
           pdfFiles.add(File(platformFile.path!));
-        } else if (platformFile.bytes != null) {
-          // Handle web platform where path might be null
+        } else {
+          // No direct file path (e.g. content URI): copy to a temp file
           final directory = await getTemporaryDirectory();
           final tempFile = File('${directory.path}/${platformFile.name}');
-          await tempFile.writeAsBytes(platformFile.bytes!);
+          await tempFile.writeAsBytes(await platformFile.readAsBytes());
           pdfFiles.add(tempFile);
         }
       }
@@ -334,32 +408,16 @@ class PdfService {
   ) async {
     try {
       final pdfBytes = await pdfFile.readAsBytes();
-      final uuid = Uuid();
-      final now = DateTime.now();
-      final timestamp = DateFormat('yyyy-MM-dd HH:mm:ss').format(now);
       int pageNumber = 1;
 
       // Convert PDF pages to images and save to folder
-      await for (var img in Printing.raster(pdfBytes, dpi: 150)) {
+      await for (var raster in Printing.raster(pdfBytes, dpi: 150)) {
         try {
-          final imgBytes = await img.toPng();
-
-          // Create image name based on PDF filename and page number
-          final imageName = '${pdfFileName}_Page_$pageNumber';
-
-          final imageModel = ImageModel(
-            id: uuid.v4(),
+          await documentRepository.addFromBytes(
             folderId: folderId,
-            image: imgBytes,
-            name: imageName,
-            createdOn: timestamp,
-            modifiedOn: timestamp,
-            size: imgBytes.lengthInBytes,
-            width: img.width,
-            height: img.height,
+            name: '${pdfFileName}_Page_$pageNumber',
+            bytes: _rasterToJpeg(raster, quality: 90),
           );
-
-          await imageDatabaseHandler.insertImage(imageModel);
           pageNumber++;
         } catch (e) {
           developer.log(
@@ -382,13 +440,12 @@ class PdfService {
   Future<void> showImportPdfDialog(BuildContext context) async {
     try {
       // Show file picker to select PDF
-      final result = await FilePicker.platform.pickFiles(
+      final platformFile = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
-        allowMultiple: false,
       );
 
-      if (result == null || result.files.isEmpty) {
+      if (platformFile == null) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -399,30 +456,15 @@ class PdfService {
         }
         return;
       }
-
-      final platformFile = result.files.first;
-      File? pdfFile;
+      File pdfFile;
 
       if (platformFile.path != null) {
         pdfFile = File(platformFile.path!);
-      } else if (platformFile.bytes != null) {
-        // Handle web platform where path might be null
+      } else {
+        // No direct file path (e.g. content URI): copy to a temp file
         final directory = await getTemporaryDirectory();
         pdfFile = File('${directory.path}/${platformFile.name}');
-        await pdfFile.writeAsBytes(platformFile.bytes!);
-      }
-
-      if (pdfFile == null) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Error reading PDF file'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-        return;
+        await pdfFile.writeAsBytes(await platformFile.readAsBytes());
       }
 
       // Get PDF filename without extension
@@ -564,7 +606,7 @@ class PdfService {
                                   duration: const Duration(seconds: 2),
                                 ),
                               );
-                              
+
                               // Show interstitial ad after successful import
                               Future.delayed(const Duration(seconds: 2), () {
                                 adService.showInterstitialAdIfReady();
@@ -609,33 +651,29 @@ class PdfService {
   ) async {
     final splitPdfs = <Uint8List>[];
 
+    try {
+      final source = sf.PdfDocument(inputBytes: pdfBytes);
+      for (final range in pageRanges) {
+        final part = sf.PdfDocument();
+        _copyPages(source, part, start: range.start, end: range.end);
+        splitPdfs.add(Uint8List.fromList(await part.save()));
+        part.dispose();
+      }
+      source.dispose();
+      return splitPdfs;
+    } catch (e) {
+      developer.log('Lossless split failed, rasterising instead', error: e);
+      splitPdfs.clear();
+    }
+
+    const dpi = 150.0;
     for (var range in pageRanges) {
       final splitPdf = pw.Document();
       int pageIndex = 0;
 
-      await for (var img in Printing.raster(pdfBytes, dpi: 150)) {
-        // Check if this page is in the range
+      await for (var raster in Printing.raster(pdfBytes, dpi: dpi)) {
         if (pageIndex >= range.start && pageIndex <= range.end) {
-          try {
-            final imgBytes = await img.toPng();
-            final pdfImage = pw.MemoryImage(imgBytes);
-
-            splitPdf.addPage(
-              pw.Page(
-                pageFormat: PdfPageFormat.a4,
-                build: (pw.Context context) {
-                  return pw.Center(
-                    child: pw.Image(pdfImage, fit: pw.BoxFit.contain),
-                  );
-                },
-              ),
-            );
-          } catch (e) {
-            developer.log(
-              'Error converting page ${pageIndex + 1} to image',
-              error: e,
-            );
-          }
+          splitPdf.addPage(_rasterPage(raster, _rasterToJpeg(raster), dpi));
         }
         pageIndex++;
       }
@@ -648,24 +686,30 @@ class PdfService {
 
   /// Gets the page count of a PDF
   Future<int> getPdfPageCount(Uint8List pdfBytes) async {
-    int count = 0;
-    await for (var _ in Printing.raster(pdfBytes, dpi: 72)) {
-      count++;
+    try {
+      final document = sf.PdfDocument(inputBytes: pdfBytes);
+      final count = document.pages.count;
+      document.dispose();
+      return count;
+    } catch (_) {
+      int count = 0;
+      await for (var _ in Printing.raster(pdfBytes, dpi: 36)) {
+        count++;
+      }
+      return count;
     }
-    return count;
   }
 
   /// Shows PDF split dialog with page range selection
   Future<void> showSplitPdfDialog(BuildContext context) async {
     try {
       // Show file picker to select PDF
-      final result = await FilePicker.platform.pickFiles(
+      final platformFile = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
-        allowMultiple: false,
       );
 
-      if (result == null || result.files.isEmpty) {
+      if (platformFile == null) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -676,29 +720,14 @@ class PdfService {
         }
         return;
       }
-
-      final platformFile = result.files.first;
-      File? pdfFile;
+      File pdfFile;
 
       if (platformFile.path != null) {
         pdfFile = File(platformFile.path!);
-      } else if (platformFile.bytes != null) {
+      } else {
         final directory = await getTemporaryDirectory();
         pdfFile = File('${directory.path}/${platformFile.name}');
-        await pdfFile.writeAsBytes(platformFile.bytes!);
-      }
-
-      if (pdfFile == null) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Error reading PDF file'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-        return;
+        await pdfFile.writeAsBytes(await platformFile.readAsBytes());
       }
 
       final pdfBytes = await pdfFile.readAsBytes();
@@ -877,14 +906,22 @@ class PdfService {
             child: const Text('Close'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              // Share all split PDFs
+              // One share sheet carrying every part.
+              final files = <XFile>[];
               for (var i = 0; i < splitPdfs.length; i++) {
                 final range = pageRanges[i];
-                final fileName =
-                    '${pdfFileName}_pages_${range.start + 1}-${range.end + 1}';
-                sharePdf(splitPdfs[i], fileName);
+                final file = await savePdfToDevice(
+                  splitPdfs[i],
+                  '${pdfFileName}_pages_${range.start + 1}-${range.end + 1}',
+                );
+                if (file != null) files.add(XFile(file.path));
+              }
+              if (files.isNotEmpty) {
+                await SharePlus.instance.share(
+                  ShareParams(files: files, subject: pdfFileName),
+                );
               }
             },
             child: const Text('Share All'),
@@ -908,19 +945,13 @@ class PdfService {
       final dpi = quality.dpi.toDouble();
 
       // Re-render PDF pages at lower DPI
-      await for (var img in Printing.raster(pdfBytes, dpi: dpi)) {
+      await for (var raster in Printing.raster(pdfBytes, dpi: dpi)) {
         try {
-          final imgBytes = await img.toPng();
-          final pdfImage = pw.MemoryImage(imgBytes);
-
           compressedPdf.addPage(
-            pw.Page(
-              pageFormat: PdfPageFormat.a4,
-              build: (pw.Context context) {
-                return pw.Center(
-                  child: pw.Image(pdfImage, fit: pw.BoxFit.contain),
-                );
-              },
+            _rasterPage(
+              raster,
+              _rasterToJpeg(raster, quality: quality.jpegQuality),
+              dpi,
             ),
           );
         } catch (e) {
@@ -950,13 +981,12 @@ class PdfService {
   Future<void> showCompressPdfDialog(BuildContext context) async {
     try {
       // Show file picker to select PDF
-      final result = await FilePicker.platform.pickFiles(
+      final platformFile = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
-        allowMultiple: false,
       );
 
-      if (result == null || result.files.isEmpty) {
+      if (platformFile == null) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -967,29 +997,14 @@ class PdfService {
         }
         return;
       }
-
-      final platformFile = result.files.first;
-      File? pdfFile;
+      File pdfFile;
 
       if (platformFile.path != null) {
         pdfFile = File(platformFile.path!);
-      } else if (platformFile.bytes != null) {
+      } else {
         final directory = await getTemporaryDirectory();
         pdfFile = File('${directory.path}/${platformFile.name}');
-        await pdfFile.writeAsBytes(platformFile.bytes!);
-      }
-
-      if (pdfFile == null) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Error reading PDF file'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-        return;
+        await pdfFile.writeAsBytes(await platformFile.readAsBytes());
       }
 
       final pdfBytes = await pdfFile.readAsBytes();
@@ -1333,13 +1348,12 @@ class PdfService {
   Future<void> showPdfToWordDialog(BuildContext context) async {
     try {
       // Show file picker to select PDF
-      final result = await FilePicker.platform.pickFiles(
+      final platformFile = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
-        allowMultiple: false,
       );
 
-      if (result == null || result.files.isEmpty) {
+      if (platformFile == null) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -1350,29 +1364,14 @@ class PdfService {
         }
         return;
       }
-
-      final platformFile = result.files.first;
-      File? pdfFile;
+      File pdfFile;
 
       if (platformFile.path != null) {
         pdfFile = File(platformFile.path!);
-      } else if (platformFile.bytes != null) {
+      } else {
         final directory = await getTemporaryDirectory();
         pdfFile = File('${directory.path}/${platformFile.name}');
-        await pdfFile.writeAsBytes(platformFile.bytes!);
-      }
-
-      if (pdfFile == null) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Error reading PDF file'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-        return;
+        await pdfFile.writeAsBytes(await platformFile.readAsBytes());
       }
 
       final pdfBytes = await pdfFile.readAsBytes();
@@ -1416,9 +1415,12 @@ class PdfService {
                   onPressed: () async {
                     Navigator.pop(context);
                     // Share the Word document
-                    await Share.shareXFiles([
-                      XFile(wordFile.path),
-                    ], subject: pdfFileName);
+                    await SharePlus.instance.share(
+                      ShareParams(
+                        files: [XFile(wordFile.path)],
+                        subject: pdfFileName,
+                      ),
+                    );
                   },
                   child: const Text('Share'),
                 ),
@@ -1627,12 +1629,13 @@ class _PageRangeSelectorState extends State<_PageRangeSelector> {
 
 /// Compression quality levels
 enum CompressionQuality {
-  low(72),
-  medium(100),
-  high(120);
+  low(72, 50),
+  medium(100, 65),
+  high(130, 80);
 
   final int dpi;
-  const CompressionQuality(this.dpi);
+  final int jpegQuality;
+  const CompressionQuality(this.dpi, this.jpegQuality);
 }
 
 final pdfService = PdfService();

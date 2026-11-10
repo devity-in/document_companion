@@ -1,8 +1,7 @@
 import 'package:document_companion/config/custom_colors.dart';
-import 'package:document_companion/modules/home/bloc/current_image_bloc.dart';
 import 'package:document_companion/modules/home/services/file_import_service.dart';
 import 'package:document_companion/modules/home/view/images_preview.dart';
-import 'package:document_companion/modules/scan/view/scan.dart';
+import 'package:document_companion/modules/scan/scan_launcher.dart';
 import 'package:flutter/material.dart';
 
 import 'create_folder_bottom_modal_sheet.dart';
@@ -47,9 +46,8 @@ class CreateBottomModalSheet extends StatelessWidget {
                           const SizedBox(height: 4),
                           Text(
                             'Scan, import, or organize your documents',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: CustomColors.textSecondary,
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: CustomColors.textSecondary),
                           ),
                         ],
                       ),
@@ -83,23 +81,14 @@ class CreateBottomModalSheet extends StatelessWidget {
                       icon: Icons.file_upload_rounded,
                       label: 'Add file',
                       color: CustomColors.accent,
-                      onTap: () {
-                        Navigator.pop(context);
-                        fileImportService.showImportOptions(context).then((
-                          _,
-                        ) async {
-                          // Navigate to images preview if images were imported
-                          await Future.delayed(
-                            const Duration(milliseconds: 500),
-                          );
-                          if (context.mounted) {
-                            final images = await currentImageBloc
-                                .getCurrentImagesList();
-                            if (images.isNotEmpty && context.mounted) {
-                              Navigator.pushNamed(context, ImagesPreview.route);
-                            }
-                          }
-                        });
+                      onTap: () async {
+                        final navigator = Navigator.of(context);
+                        navigator.pop();
+                        final imported = await fileImportService
+                            .showImportOptions(navigator.context);
+                        if (imported > 0 && navigator.mounted) {
+                          navigator.pushNamed(ImagesPreview.route);
+                        }
                       },
                     ),
                     _CreateOption(
@@ -107,8 +96,9 @@ class CreateBottomModalSheet extends StatelessWidget {
                       label: 'Scan',
                       color: CustomColors.warning,
                       onTap: () {
-                        Navigator.pop(context);
-                        Navigator.pushNamed(context, Scan.route);
+                        final navigator = Navigator.of(context);
+                        navigator.pop();
+                        ScanLauncher.start(navigator.context);
                       },
                     ),
                   ],

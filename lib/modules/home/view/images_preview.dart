@@ -18,6 +18,7 @@ class ImagesPreview extends StatefulWidget {
 class _ImagesPreviewState extends State<ImagesPreview> {
   final PageController _pageController = PageController();
   bool _isCreatingPdf = false;
+  int _index = 0;
 
   @override
   void initState() {
@@ -47,15 +48,49 @@ class _ImagesPreviewState extends State<ImagesPreview> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error creating PDF: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error creating PDF: $e')));
       }
     } finally {
       if (mounted) {
         setState(() => _isCreatingPdf = false);
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _deletePage(CurrentImage image) async {
+    await currentImageBloc.deleteCurrentImageItem(image);
+  }
+
+  Future<void> _discardAll(int count) async {
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Discard scan?'),
+        content: Text(
+          'The $count page${count == 1 ? '' : 's'} you have not saved will be deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (discard != true) return;
+    await currentImageBloc.deleteCurrentImages();
+    if (mounted) Navigator.pop(context);
   }
 
   @override
@@ -93,20 +128,50 @@ class _ImagesPreviewState extends State<ImagesPreview> {
               );
             }
 
+            final index = _index.clamp(0, list.length - 1);
+
             return Column(
               children: [
+                // Header: back to add more pages, or remove the current one
+                Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'Back',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.arrow_back_rounded),
+                      color: Colors.white,
+                    ),
+                    Expanded(
+                      child: Text(
+                        '${list.length} page${list.length == 1 ? '' : 's'} not saved yet',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Remove this page',
+                      onPressed: () => _deletePage(list[index]),
+                      icon: const Icon(Icons.delete_outline_rounded),
+                      color: Colors.white,
+                    ),
+                  ],
+                ),
                 Expanded(
                   child: PageView.builder(
                     itemCount: list.length,
                     controller: _pageController,
                     physics: const BouncingScrollPhysics(),
+                    onPageChanged: (page) => setState(() => _index = page),
                     itemBuilder: (context, index) {
                       final imageData = list.elementAt(index);
                       return Container(
                         color: Colors.black,
                         child: Center(
-                          child: Image.memory(
-                            imageData.image,
+                          child: Image.file(
+                            imageData.file,
                             fit: BoxFit.contain,
                           ),
                         ),
@@ -121,48 +186,34 @@ class _ImagesPreviewState extends State<ImagesPreview> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       IconButton(
-                        onPressed:
-                            _pageController.hasClients &&
-                                (_pageController.page?.toInt() ?? 0) > 0
-                            ? () {
-                                _pageController.previousPage(
-                                  duration: const Duration(milliseconds: 300),
-                                  curve: Curves.easeInOut,
-                                );
-                              }
+                        onPressed: index > 0
+                            ? () => _pageController.previousPage(
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeInOut,
+                              )
                             : null,
                         icon: const Icon(Icons.chevron_left_rounded),
                         color: Colors.white,
+                        disabledColor: Colors.white24,
                       ),
-                      Builder(
-                        builder: (context) {
-                          final currentPage = _pageController.hasClients
-                              ? (_pageController.page?.toInt() ?? 0)
-                              : 0;
-                          return Text(
-                            '${currentPage + 1} / ${list.length}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          );
-                        },
+                      Text(
+                        '${index + 1} / ${list.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                       IconButton(
-                        onPressed:
-                            _pageController.hasClients &&
-                                (_pageController.page?.toInt() ?? 0) <
-                                    list.length - 1
-                            ? () {
-                                _pageController.nextPage(
-                                  duration: const Duration(milliseconds: 300),
-                                  curve: Curves.easeInOut,
-                                );
-                              }
+                        onPressed: index < list.length - 1
+                            ? () => _pageController.nextPage(
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeInOut,
+                              )
                             : null,
                         icon: const Icon(Icons.chevron_right_rounded),
                         color: Colors.white,
+                        disabledColor: Colors.white24,
                       ),
                     ],
                   ),
@@ -188,12 +239,13 @@ class _ImagesPreviewState extends State<ImagesPreview> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        IconButton(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(
-                            Icons.close_rounded,
-                            color: Colors.white,
+                        TextButton.icon(
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.white,
                           ),
+                          onPressed: () => _discardAll(list.length),
+                          label: const Text('Discard'),
+                          icon: const Icon(Icons.close_rounded),
                         ),
                         TextButton.icon(
                           style: TextButton.styleFrom(
